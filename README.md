@@ -1,9 +1,4 @@
-python your_script.py --base_movie_dir "/mnt/movies" --output_dir "/mnt/collections" --overwrite
-Here's an example shell command using the script:
-
-bash
-
-python your_script.py --base_movie_dir "/mnt/movies" --output_dir "/mnt/collections" --overwrite
+ python your_script.py --base_movie_dir "/mnt/movies" --output_dir "/mnt/collections" --overwrite
 
 Breakdown of the command:
 
