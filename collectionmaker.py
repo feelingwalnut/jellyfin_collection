@@ -5,7 +5,6 @@ import logging
 import requests
 import argparse
 import time
-import re
 
 # Base directory where all movies are stored (default)
 BASE_MOVIE_DIR = '/srv/LibraryPart/Library/Movies'
@@ -27,8 +26,11 @@ def parse_movie_nfo(nfo_file):
     data = {}
     data['LocalTitle'] = root.findtext('title', default='Unknown Title')
     data['TmdbId'] = root.findtext('tmdbid', default='Unknown')
+    
+    # Extract collection set name and overview
     data['CollectionName'] = root.findtext('set/name', default=None)
-    data['Overview'] = root.findtext('plot', default='No overview available.')
+    data['Overview'] = root.findtext('set/overview', default='No overview available.')
+
     data['OriginalFile'] = root.findtext('original_filename', default=None)
 
     # Extract genres and studios
@@ -62,7 +64,10 @@ def create_collection_xml(collection_name, collection_data, output_file, base_mo
     collection_items = ET.SubElement(root, "CollectionItems")
     for movie in collection_data['Movies']:
         collection_item = ET.SubElement(collection_items, "CollectionItem")
-        ET.SubElement(collection_item, "Path").text = os.path.join(base_movie_dir, movie['FullRelativePath'])
+        
+        # Format the path with single quotes if it contains spaces
+        path = os.path.join(base_movie_dir, movie['FullRelativePath'])
+        ET.SubElement(collection_item, "Path").text = path
 
     # Pretty-print the XML
     xml_str = ET.tostring(root, encoding='utf-8')
@@ -125,9 +130,10 @@ def process_movie_nfo_files(nfo_dir, output_dir, base_movie_dir, overwrite=False
                 # Parse the movie NFO
                 movie_data = parse_movie_nfo(nfo_file_path)
 
+                # Check if the movie has a collection name
                 if movie_data['CollectionName']:
-                    # Clean up the collection name for folder naming and apply '[boxset]' suffix
-                    collection_name = f"{movie_data['CollectionName'].replace('/', ' - ')} [boxset]"
+                    # Clean up the collection name for folder naming
+                    collection_name = f"{movie_data['CollectionName'].replace('/', ' - ')}"
 
                     # Find the video file that matches the NFO
                     video_file = find_video_file_for_nfo(nfo_file_path)
