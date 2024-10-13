@@ -149,8 +149,9 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
                         logging.warning(f"No matching video file found for NFO: {nfo_file_path}")
                         continue
 
-                    # Convert the video file's path to be relative to the base movie directory
-                    movie_relative_path = os.path.relpath(video_file, BASE_MOVIE_DIR)
+                    # Keep the full path relative to BASE_MOVIE_DIR
+                    # This will include the full directory hierarchy from the base movie directory
+                    movie_full_path = os.path.relpath(video_file, BASE_MOVIE_DIR)
 
                     # Add the movie to its collection
                     if collection_name not in collections:
@@ -161,7 +162,7 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
                             'Studios': movie_data.get('Studios', []),
                         }
 
-                    collections[collection_name]['Movies'].append({'Path': movie_relative_path})
+                    collections[collection_name]['Movies'].append({'Path': movie_full_path})
 
     # Create XML files for each collection, but only if there are 2 or more movies
     for collection_name, collection_data in collections.items():
@@ -180,6 +181,7 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
                 create_collection_xml(collection_name, collection_data, output_file)
         else:
             logging.info(f"Skipping collection '{collection_name}' as it contains less than 2 movies.")
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
