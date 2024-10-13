@@ -21,9 +21,6 @@ VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.webm', '.m
 # Throttling API calls
 THROTTLE_TIME = 0.1  # seconds
 
-# Global flag for TMDb fetch warning
-tmdb_warning_flag = True
-
 def parse_movie_nfo(nfo_file):
     """Parses the movie NFO to extract relevant collection and file information."""
     tree = ET.parse(nfo_file)
@@ -82,12 +79,10 @@ def create_collection_xml(collection_name, collection_data, output_file):
 
 def fetch_collection_data_from_tmdb(tmdb_id, movie_data):
     """Fetches collection metadata from TMDb for a given collection."""
-    global tmdb_warning_flag
+    global TMDB_API_KEY
 
     if not TMDB_API_KEY:
-        if tmdb_warning_flag:
-            logging.info("No TMDb API key provided. Skipping TMDb fetch.")
-            tmdb_warning_flag = False
+        logging.info("No TMDb API key provided. Skipping TMDb fetch.")
         return {'Overview': movie_data['Overview'], 'Genres': [], 'Studios': []}
 
     try:
@@ -130,35 +125,9 @@ def find_video_file_for_nfo(nfo_file_path):
             return video_file_path
     return None
 
-def fetch_collection_ids():
-    """Fetches the current list of collection IDs from the TMDb export file."""
-    current_date = time.strftime("%m_%d_%Y")  # Format date as MM_DD_YYYY
-    url = f"http://files.tmdb.org/p/exports/collection_ids_{current_date}.json.gz"
-
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an error for bad responses
-
-        # Write the .gz file
-        gz_file_path = 'collection_ids.json.gz'
-        with open(gz_file_path, 'wb') as f:
-            f.write(response.content)
-
-        # Extract the JSON from the gzipped file
-        with gzip.open(gz_file_path, 'rt', encoding='utf-8') as f:
-            collection_ids = json.load(f)
-
-        return collection_ids
-    except Exception as e:
-        logging.error(f"Failed to fetch or extract collection IDs: {e}")
-        return []
-
 def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
     """Scans movie NFOs and builds collection XMLs based on the movie's collection information."""
     collections = {}
-
-    # Fetch collection IDs from TMDb
-    collection_ids = fetch_collection_ids()
 
     # Traverse the NFO directory to find all NFO files
     for root, dirs, files in os.walk(nfo_dir):
@@ -183,27 +152,20 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
                     # Convert the video file's path to be relative to the base movie directory
                     movie_relative_path = os.path.relpath(video_file, BASE_MOVIE_DIR)
 
-                    # Add the movie to its collection only if the collection ID is in the fetched IDs
-                    if movie_data['TmdbId'] in collection_ids:
-                        if collection_name not in collections:
-                            collections[collection_name] = {
-                                'Overview': movie_data['Overview'],
-                                'Movies': [],
-                                'Genres': [],  # Start with empty genres
-                                'Studios': [],  # Start with empty studios
-                            }
+                    # Add the movie to its collection
+                    if collection_name not in collections:
+                        collections[collection_name] = {
+                            'Overview': movie_data['Overview'],
+                            'Movies': [],
+                            'Genres': movie_data.get('Genres', []),
+                            'Studios': movie_data.get('Studios', []),
+                        }
 
-                        collections[collection_name]['Movies'].append({'Path': movie_relative_path})
+                    collections[collection_name]['Movies'].append({'Path': movie_relative_path})
 
     # Create XML files for each collection, but only if there are 2 or more movies
     for collection_name, collection_data in collections.items():
         if len(collection_data['Movies']) >= 2:
-            # Fetch additional data from TMDb
-            collection_info = fetch_collection_data_from_tmdb(collection_data['Movies'][0]['TmdbId'], collection_data)
-            collection_data['Overview'] = collection_info['Overview']
-            collection_data['Genres'] = collection_info.get('Genres', [])
-            collection_data['Studios'] = collection_info.get('Studios', [])
-
             # Sort movies by date before creating the XML
             collection_data['Movies'] = sort_movies_by_date(collection_data['Movies'])
 
