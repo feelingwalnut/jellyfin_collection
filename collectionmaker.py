@@ -139,8 +139,8 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
                 movie_data = parse_movie_nfo(nfo_file_path)
 
                 if movie_data['CollectionName']:
-                    # Clean up the collection name for folder naming and apply '[Boxset]' suffix
-                    collection_name = f"{movie_data['CollectionName'].replace('/', ' - ')} [Boxset]"
+                    # Clean up the collection name for folder naming and apply '[boxset]' suffix
+                    collection_name = f"{movie_data['CollectionName'].replace('/', ' - ')} [boxset]"
 
                     # Find the video file that matches the NFO
                     video_file = find_video_file_for_nfo(nfo_file_path)
