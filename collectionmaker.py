@@ -102,16 +102,16 @@ def fetch_collection_data_from_tmdb(tmdb_id, movie_data):
         logging.error(f"Error fetching collection data from TMDb for ID {tmdb_id}: {e}")
         return {'Overview': 'No overview available.', 'Genres': [], 'Studios': []}
 
-def extract_date_from_filename(filename):
-    """Extracts the date from the filename in the format 'movie (YYYY-MM-DD).ext'."""
-    match = re.search(r'\((\d{4}-\d{2}-\d{2})\)', filename)
+def extract_year_from_filename(filename):
+    """Extracts the year from the filename in the format 'movie (YYYY).ext'."""
+    match = re.search(r'\((\d{4})\)', filename)
     if match:
-        return match.group(1)
-    return None  # Return None if no date found
+        return int(match.group(1))  # Return the year as an integer for proper sorting
+    return None  # Return None if no year found
 
-def sort_movies_by_date(movies):
-    """Sorts a list of movies based on the extracted date from their filenames."""
-    return sorted(movies, key=lambda m: extract_date_from_filename(os.path.basename(m['Path'])) or '')
+def sort_movies_by_year(movies):
+    """Sorts a list of movies based on the extracted year from their filenames."""
+    return sorted(movies, key=lambda m: extract_year_from_filename(os.path.basename(m['Path'])) or 0)
 
 def find_video_file_for_nfo(nfo_file_path):
     """Finds a video file in the same directory as the .nfo file with a matching base filename."""
@@ -139,8 +139,8 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
                 movie_data = parse_movie_nfo(nfo_file_path)
 
                 if movie_data['CollectionName']:
-                    # Clean up the collection name for folder naming
-                    collection_name = movie_data['CollectionName'].replace('/', ' - ')  # Replace '/' with ' - '
+                    # Clean up the collection name for folder naming and apply '[Boxset]' suffix
+                    collection_name = f"{movie_data['CollectionName'].replace('/', ' - ')} [Boxset]"
 
                     # Find the video file that matches the NFO
                     video_file = find_video_file_for_nfo(nfo_file_path)
@@ -166,8 +166,8 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
     # Create XML files for each collection, but only if there are 2 or more movies
     for collection_name, collection_data in collections.items():
         if len(collection_data['Movies']) >= 2:
-            # Sort movies by date before creating the XML
-            collection_data['Movies'] = sort_movies_by_date(collection_data['Movies'])
+            # Sort movies by year before creating the XML
+            collection_data['Movies'] = sort_movies_by_year(collection_data['Movies'])
 
             collection_dir = os.path.join(output_dir, collection_name)
 
