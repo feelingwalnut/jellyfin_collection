@@ -16,7 +16,7 @@ OUTPUT_DIR = '/var/lib/jellyfin/data/collections'  # Default output directory fo
 TMDB_API_KEY = ''  # Add your TMDb API key, or leave it empty to disable TMDb fetching
 
 # Supported video extensions
-VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv']
+VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.webm', '.m4v']
 
 # Throttling API calls
 THROTTLE_TIME = 0.1  # seconds
