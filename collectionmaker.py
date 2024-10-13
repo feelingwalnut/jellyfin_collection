@@ -6,8 +6,6 @@ import requests
 import argparse
 import time
 import re
-import json
-import gzip
 
 # Base directory where all movies are stored (default)
 BASE_MOVIE_DIR = '/srv/LibraryPart/Library/Movies'
@@ -39,7 +37,7 @@ def parse_movie_nfo(nfo_file):
 
     return data
 
-def create_collection_xml(collection_name, collection_data, output_file):
+def create_collection_xml(collection_name, collection_data, output_file, base_movie_dir):
     """Creates a collection XML file with the gathered data."""
     root = ET.Element("Item")
 
@@ -64,7 +62,7 @@ def create_collection_xml(collection_name, collection_data, output_file):
     collection_items = ET.SubElement(root, "CollectionItems")
     for movie in collection_data['Movies']:
         collection_item = ET.SubElement(collection_items, "CollectionItem")
-        ET.SubElement(collection_item, "Path").text = movie['Path']
+        ET.SubElement(collection_item, "Path").text = os.path.join(base_movie_dir, movie['FullRelativePath'])
 
     # Pretty-print the XML
     xml_str = ET.tostring(root, encoding='utf-8')
@@ -102,17 +100,6 @@ def fetch_collection_data_from_tmdb(tmdb_id, movie_data):
         logging.error(f"Error fetching collection data from TMDb for ID {tmdb_id}: {e}")
         return {'Overview': 'No overview available.', 'Genres': [], 'Studios': []}
 
-def extract_year_from_filename(filename):
-    """Extracts the year from the filename in the format 'movie (YYYY).ext'."""
-    match = re.search(r'\((\d{4})\)', filename)
-    if match:
-        return int(match.group(1))  # Return the year as an integer for proper sorting
-    return None  # Return None if no year found
-
-def sort_movies_by_year(movies):
-    """Sorts a list of movies based on the extracted year from their filenames."""
-    return sorted(movies, key=lambda m: extract_year_from_filename(os.path.basename(m['Path'])) or 0)
-
 def find_video_file_for_nfo(nfo_file_path):
     """Finds a video file in the same directory as the .nfo file with a matching base filename."""
     nfo_dir = os.path.dirname(nfo_file_path)
@@ -125,7 +112,7 @@ def find_video_file_for_nfo(nfo_file_path):
             return video_file_path
     return None
 
-def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
+def process_movie_nfo_files(nfo_dir, output_dir, base_movie_dir, overwrite=False):
     """Scans movie NFOs and builds collection XMLs based on the movie's collection information."""
     collections = {}
 
@@ -149,9 +136,8 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
                         logging.warning(f"No matching video file found for NFO: {nfo_file_path}")
                         continue
 
-                    # Keep the full path relative to BASE_MOVIE_DIR
-                    # This will include the full directory hierarchy from the base movie directory
-                    movie_full_path = os.path.relpath(video_file, BASE_MOVIE_DIR)
+                    # Use the full path relative to the base movie directory
+                    movie_relative_path = os.path.relpath(video_file, base_movie_dir)
 
                     # Add the movie to its collection
                     if collection_name not in collections:
@@ -162,14 +148,12 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
                             'Studios': movie_data.get('Studios', []),
                         }
 
-                    collections[collection_name]['Movies'].append({'Path': movie_full_path})
+                    # Store the full relative path of the movie
+                    collections[collection_name]['Movies'].append({'FullRelativePath': movie_relative_path})
 
     # Create XML files for each collection, but only if there are 2 or more movies
     for collection_name, collection_data in collections.items():
         if len(collection_data['Movies']) >= 2:
-            # Sort movies by year before creating the XML
-            collection_data['Movies'] = sort_movies_by_year(collection_data['Movies'])
-
             collection_dir = os.path.join(output_dir, collection_name)
 
             if not os.path.exists(collection_dir):
@@ -178,19 +162,20 @@ def process_movie_nfo_files(nfo_dir, output_dir, overwrite=False):
             output_file = os.path.join(collection_dir, 'collection.xml')
 
             if not os.path.exists(output_file) or overwrite:
-                create_collection_xml(collection_name, collection_data, output_file)
+                create_collection_xml(collection_name, collection_data, output_file, base_movie_dir)
         else:
             logging.info(f"Skipping collection '{collection_name}' as it contains less than 2 movies.")
 
-
+# Main execution
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser(description='Process movie NFO files and generate collection XMLs.')
     parser.add_argument('--nfo_dir', default=NFO_DIR, help='Directory containing movie NFO files.')
     parser.add_argument('--output_dir', default=OUTPUT_DIR, help='Output directory for collection XMLs.')
+    parser.add_argument('--base_movie', default=BASE_MOVIE_DIR, help='Base movie directory for full paths.')
     parser.add_argument('--overwrite', action='store_true', help='Overwrite existing XML files.')
 
     args = parser.parse_args()
 
-    process_movie_nfo_files(args.nfo_dir, args.output_dir, args.overwrite)
+    process_movie_nfo_files(args.nfo_dir, args.output_dir, args.base_movie, args.overwrite)
