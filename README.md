@@ -1,12 +1,16 @@
-python your_script.py --nfo_dir "/path/to/nfo_directory" --base_movie_dir "/mnt/movies" --output_dir "/mnt/collections" --overwrite
+if no api key is provided, will use local information from movie nfo files to fill the collection xml.
+if api key provided, will fill xml missing fields with information obtained from api as well as fetch one banner and one poster image (with preference for english)
 
+usage: collectionmaker.py [-h] --library_dir LIBRARY_DIR [--output_dir OUTPUT_DIR]
+                     [--key KEY] [--overwrite]
 
-Breakdown of the command:
+Create collection XML files from NFOs.
 
-    --nfo"path/to/NFO": specify if NFO's are not in same directory/subdirecotry as script.
-    
-    --base_movie "/mnt/movies": Specifies the base hierarchy for the movies. If not provided, the default directory (NFO's location) is used.
-    
-    --output "/mnt/collections": Specifies where to save the collection.xml files. If not provided, the default directory for jellyfin, from the script is used.
-    
-    --overwrite: This flag forces the script to overwrite any existing collection.xml files
+options:
+  -h, --help            show this help message and exit
+  --library_dir LIBRARY_DIR
+                        Directory containing NFO and video files.
+  --output_dir OUTPUT_DIR
+                        Output directory for collection XMLs.
+  --key KEY             TMDb API key for fetching additional collection data.
+  --overwrite           Overwrite existing XML files.
