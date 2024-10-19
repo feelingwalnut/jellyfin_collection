@@ -36,7 +36,7 @@ def parse_movie_nfo(nfo_file):
 
     return data
 
-def create_collection_xml(collection_name, collection_data, output_file, library_dir, collection_id=None, overwrite=False):
+def create_collection_xml(collection_name, collection_data, output_file, library_dir, collection_id=None):
     """Creates a collection XML file with the gathered data."""
     root = ET.Element("Item")
 
@@ -46,6 +46,10 @@ def create_collection_xml(collection_name, collection_data, output_file, library
     ET.SubElement(root, "Overview").text = collection_data['Overview']
     ET.SubElement(root, "LocalTitle").text = collection_name
     ET.SubElement(root, "DisplayOrder").text = "PremiereDate"
+
+    # Add the TmdbId instead of a comment
+    if collection_id:
+        ET.SubElement(root, "TmdbId").text = str(collection_id)
 
     # Genres
     genres_elem = ET.SubElement(root, "Genres")
@@ -66,49 +70,67 @@ def create_collection_xml(collection_name, collection_data, output_file, library
         path = os.path.join(library_dir, movie['FullRelativePath'])
         ET.SubElement(collection_item, "Path").text = path
 
-    # Add collection_id as a child element inside the XML, nested within the root Item
-    if collection_id:
-        ET.SubElement(root, "CollectionID").text = str(collection_id)
-
     # Pretty-print the XML
     xml_str = ET.tostring(root, encoding='utf-8')
     dom = minidom.parseString(xml_str)
     pretty_xml_as_string = dom.toprettyxml(indent="  ")
 
-    # Check if the output file already exists and handle based on the overwrite flag
-    if os.path.exists(output_file) and not overwrite:
-        logging.info(f"Skipping existing XML for {collection_name}. Use --overwrite to force.")
-        return  # Exit the function if the file exists and overwrite is False
-
     # Save the formatted XML string to a file
+    output_directory = os.path.dirname(output_file)
+    os.makedirs(output_directory, exist_ok=True)  # Ensure the output directory exists
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(pretty_xml_as_string)
 
     logging.info(f"Collection XML saved to {output_file}")
 
+def download_image(url, output_dir, name):
+    """Downloads an image from a URL and saves it to the specified directory."""
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-def fetch_collection_data_from_tmdb(tmdb_id, movie_data, api_key):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+
+        # Save the image with the appropriate name
+        image_path = os.path.join(output_dir, name)
+        with open(image_path, 'wb') as img_file:
+            img_file.write(response.content)
+            logging.info(f"Downloaded image: {image_path}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error downloading image from {url}: {e}")
+
+def fetch_collection_data_from_tmdb(tmdb_id, api_key):
     """Fetches collection metadata from TMDb for a given collection."""
     if not api_key:
         logging.info("No TMDb API key provided. Skipping TMDb fetch.")
-        return {'Overview': movie_data['Overview'], 'Genres': [], 'Studios': []}
+        return {'Overview': 'No overview available.', 'Genres': [], 'Studios': [], 'Images': []}
 
     try:
         time.sleep(THROTTLE_TIME)  # Throttle API calls
         collection_info = requests.get(f"https://api.themoviedb.org/3/collection/{tmdb_id}?api_key={api_key}").json()
         
         if collection_info:
+            # Prepare to download images
+            images = []
+            if 'backdrop_path' in collection_info:
+                images.append((f"https://image.tmdb.org/t/p/original{collection_info['backdrop_path']}", "backdrop.jpg"))
+            if 'poster_path' in collection_info:
+                images.append((f"https://image.tmdb.org/t/p/original{collection_info['poster_path']}", "poster.jpg"))
+
             return {
                 'Overview': collection_info.get('overview', 'No overview available.'),
                 'Genres': [genre['name'] for genre in collection_info.get('genres', [])],
-                'Studios': [studio['name'] for studio in collection_info.get('production_companies', [])]
+                'Studios': [studio['name'] for studio in collection_info.get('production_companies', [])],
+                'Images': images
             }
         else:
             logging.warning(f"No collection data found for TMDb ID {tmdb_id}")
-            return {'Overview': 'No overview available.', 'Genres': [], 'Studios': []}
+            return {'Overview': 'No overview available.', 'Genres': [], 'Studios': [], 'Images': []}
     except requests.exceptions.RequestException as e:
         logging.error(f"Error fetching collection data from TMDb for ID {tmdb_id}: {e}")
-        return {'Overview': 'No overview available.', 'Genres': [], 'Studios': []}
+        return {'Overview': 'No overview available.', 'Genres': [], 'Studios': [], 'Images': []}
 
 def find_video_file_for_nfo(nfo_file):
     """Finds the video file that corresponds to the given NFO file."""
@@ -154,42 +176,6 @@ def download_and_extract_collection_ids():
         logging.error(f"Failed to download or parse collection IDs: {e}")
         return {}
 
-def fetch_collection_images(collection_id, api_key, output_dir):
-    """Fetch images for a specific collection using the TMDb API."""
-    api_url = f"https://api.themoviedb.org/3/collection/{collection_id}/images?api_key={api_key}"
-    try:
-        response = requests.get(api_url)
-        if response.status_code == 200:
-            data = response.json()
-
-            # Attempt to download the first English backdrop if available
-            english_backdrops = [backdrop for backdrop in data.get('backdrops', []) if backdrop.get('iso_639_1') == 'en']
-            if english_backdrops:
-                backdrop_path = english_backdrops[0]['file_path']
-                download_image(f"https://image.tmdb.org/t/p/original{backdrop_path}", os.path.join(output_dir, 'backdrop.jpg'))
-            else:
-                # Fall back to the first available backdrop
-                if data.get('backdrops'):
-                    backdrop_path = data['backdrops'][0]['file_path']
-                    download_image(f"https://image.tmdb.org/t/p/original{backdrop_path}", os.path.join(output_dir, 'backdrop.jpg'))
-
-            # Attempt to download the first English poster if available
-            english_posters = [poster for poster in data.get('posters', []) if poster.get('iso_639_1') == 'en']
-            if english_posters:
-                poster_path = english_posters[0]['file_path']
-                download_image(f"https://image.tmdb.org/t/p/original{poster_path}", os.path.join(output_dir, 'poster.jpg'))
-            else:
-                # Fall back to the first available poster
-                if data.get('posters'):
-                    poster_path = data['posters'][0]['file_path']
-                    download_image(f"https://image.tmdb.org/t/p/original{poster_path}", os.path.join(output_dir, 'poster.jpg'))
-
-        else:
-            print(f"Failed to fetch images for collection ID {collection_id} (Status Code: {response.status_code})")
-    except Exception as e:
-        print(f"Error fetching images for collection ID {collection_id}: {e}")
-
-
 def process_movie_nfo_files(library_dir, output_dir, api_key, overwrite=False):
     """Scans movie NFOs and builds collection XMLs based on the movie's collection information."""
     collections = {}
@@ -216,60 +202,63 @@ def process_movie_nfo_files(library_dir, output_dir, api_key, overwrite=False):
                     # Find the video file that matches the NFO
                     video_file = find_video_file_for_nfo(nfo_file_path)
 
-                    # Add movie info to the collections dictionary
+                    if not video_file:
+                        logging.warning(f"No matching video file found for NFO: {nfo_file_path}")
+                        continue
+
+                    # Use the full path relative to the library directory
+                    movie_relative_path = os.path.relpath(video_file, library_dir)
+
+                    # Add the movie to its collection
                     if collection_name not in collections:
                         collections[collection_name] = {
+                            'Overview': movie_data['Overview'],
                             'Movies': [],
-                            'CollectionId': collection_ids.get(collection_name, None)
+                            'Genres': [],
+                            'Studios': []
                         }
                     collections[collection_name]['Movies'].append({
-                        'LocalTitle': movie_data['LocalTitle'],
-                        'TmdbId': movie_data['TmdbId'],
-                        'FullRelativePath': os.path.relpath(video_file, library_dir) if video_file else None,
+                        'Title': movie_data['LocalTitle'],
+                        'FullRelativePath': movie_relative_path,
                     })
 
-    # Create collection XML files and download images for each collection
+                    # Add genres and studios, ensuring no duplicates
+                    collections[collection_name]['Genres'] = list(set(collections[collection_name]['Genres'] + movie_data['Genres']))
+                    collections[collection_name]['Studios'] = list(set(collections[collection_name]['Studios'] + movie_data['Studios']))
+
+    # Generate XML files for each collection
     for collection_name, collection_data in collections.items():
-        output_file = os.path.join(output_dir, f"{collection_name}.xml")
-        
-        if os.path.exists(output_file) and not overwrite:
-            logging.info(f"Skipping existing XML for {collection_name}. Use --overwrite to force.")
+        collection_id = collection_ids.get(collection_name)  # Get the collection ID if available
+        output_file_path = os.path.join(output_dir, collection_name, 'collection.xml')
+
+        # Check if the file exists and the overwrite flag
+        if os.path.exists(output_file_path) and not overwrite:
+            logging.info(f"Skipping existing XML file for collection: {collection_name}")
             continue
 
-        # Fetch collection data from TMDb
-        if collection_data['CollectionId']:
-            tmdb_data = fetch_collection_data_from_tmdb(collection_data['CollectionId'], collection_data['Movies'][0], api_key)
-            collection_data.update(tmdb_data)
+        # Create the collection XML
+        create_collection_xml(collection_name, collection_data, output_file_path, library_dir, collection_id)
 
-            # Create XML for the collection
-            create_collection_xml(collection_name, collection_data, output_file, library_dir, collection_data['CollectionId'])
+        # Download collection images if any exist
+        if collection_id:
+            tmdb_data = fetch_collection_data_from_tmdb(collection_id, api_key)
+            for img_url, img_name in tmdb_data['Images']:
+                download_image(img_url, os.path.join(output_dir, collection_name), img_name)
 
-            # Download collection images if API key is provided
-            if api_key:
-                fetch_collection_images(collection_data['CollectionId'], api_key, output_dir)
-        else:
-            logging.warning(f"No collection ID found for {collection_name}. Skipping.")
-
-def download_image(url, file_path):
-    """Downloads an image from the provided URL."""
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        with open(file_path, 'wb') as f:
-            f.write(response.content)
-        logging.info(f"Downloaded image to {file_path}")
-    except Exception as e:
-        logging.error(f"Failed to download image from {url}: {e}")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate XML for movie collections and fetch images from TMDb.")
-    parser.add_argument("--library_dir", required=True, help="Directory containing movie NFO files.")
+def main():
+    parser = argparse.ArgumentParser(description="Create collection XML files from NFOs.")
+    parser.add_argument("--library_dir", required=True, help="Directory containing NFO and video files.")
     parser.add_argument('--output_dir', default='/var/lib/jellyfin/data/collections', help='Output directory for collection XMLs.')
-    parser.add_argument("--key", default=None, help="TMDb API key (optional).")
-    parser.add_argument("--overwrite", action='store_true', help="Overwrite existing XML files if they exist.")
+    parser.add_argument("--key", help="TMDb API key for fetching additional collection data.")
+    parser.add_argument("--overwrite", action='store_true', help="Overwrite existing XML files.")
+
     args = parser.parse_args()
 
     # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+    # Process the movie NFO files
     process_movie_nfo_files(args.library_dir, args.output_dir, args.key, args.overwrite)
+
+if __name__ == "__main__":
+    main()
