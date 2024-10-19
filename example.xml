@@ -1,0 +1,31 @@
+<?xml version="1.0" ?>
+<Item>
+  <ContentRating>NR</ContentRating>
+  <LockData>false</LockData>
+  <Overview>long description.</Overview>
+  <LocalTitle>abcd collection</LocalTitle>
+  <DisplayOrder>PremiereDate</DisplayOrder>
+  <TmdbId>000000</TmdbId>
+  <Genres>
+    <Genre>genre 1</Genre>
+    <Genre>genre 2</Genre>
+    <Genre>genre 3</Genre>
+  </Genres>
+  <Studios>
+    <Studio>studio 1</Studio>
+    <Studio>studio 2</Studio>
+    <Studio>studio 3</Studio>
+    <Studio>studio 4</Studio>
+  </Studios>
+  <CollectionItems>
+    <CollectionItem>
+      <Path>/Library/Movies/Action/abcd 3 (2015).mp4</Path>
+    </CollectionItem>
+    <CollectionItem>
+      <Path>/Library/Movies/Action/abcd 2 (2013).mp4</Path>
+    </CollectionItem>
+    <CollectionItem>
+      <Path>/Library/Movies/Action/abcd (2009).mkv</Path>
+    </CollectionItem>
+  </CollectionItems>
+</Item>
