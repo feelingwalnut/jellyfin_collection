@@ -8,5 +8,5 @@ options:
   -h, --help                   show this help message and exit
   --library_dir [LIBRARY_DIR]  Directory containing NFO and video files.
   --output_dir [OUTPUT_DIR]    Output directory for collection XMLs.
-  --key [KEY]                    TMDb API key for fetching additional collection data/images
+  --key [KEY]                  TMDb API key for fetching additional collection data/images
   --overwrite                  Overwrite existing XML files.
