@@ -83,23 +83,28 @@ def create_collection_xml(collection_name, collection_data, output_file, library
 
     logging.info(f"Collection XML saved to {output_file}")
 
-def download_image(url, output_dir, name):
+def download_image(url, output_dir, name, overwrite=False):
     """Downloads an image from a URL and saves it to the specified directory."""
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
+    image_path = os.path.join(output_dir, name)
 
-        # Save the image with the appropriate name
-        image_path = os.path.join(output_dir, name)
-        with open(image_path, 'wb') as img_file:
-            img_file.write(response.content)
-            logging.info(f"Downloaded image: {image_path}")
+    # Check if the image exists and whether it should be overwritten
+    if not os.path.exists(image_path) or overwrite:
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
 
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error downloading image from {url}: {e}")
+            # Save the image with the appropriate name
+            with open(image_path, 'wb') as img_file:
+                img_file.write(response.content)
+                logging.info(f"Downloaded image: {image_path}")
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error downloading image from {url}: {e}")
+    else:
+        logging.info(f"Image already exists, skipping download: {image_path}")
 
 def fetch_collection_data_from_tmdb(tmdb_id, api_key):
     """Fetches collection metadata from TMDb for a given collection."""
@@ -231,11 +236,6 @@ def process_movie_nfo_files(library_dir, output_dir, api_key, overwrite=False):
         collection_id = collection_ids.get(collection_name)  # Get the collection ID if available
         output_file_path = os.path.join(output_dir, collection_name, 'collection.xml')
 
-        # Check if the file exists and the overwrite flag
-        if os.path.exists(output_file_path) and not overwrite:
-            logging.info(f"Skipping existing XML file for collection: {collection_name}")
-            continue
-
         # Create the collection XML
         create_collection_xml(collection_name, collection_data, output_file_path, library_dir, collection_id)
 
@@ -243,7 +243,7 @@ def process_movie_nfo_files(library_dir, output_dir, api_key, overwrite=False):
         if collection_id:
             tmdb_data = fetch_collection_data_from_tmdb(collection_id, api_key)
             for img_url, img_name in tmdb_data['Images']:
-                download_image(img_url, os.path.join(output_dir, collection_name), img_name)
+                download_image(img_url, os.path.join(output_dir, collection_name), img_name, overwrite)
 
 def main():
     parser = argparse.ArgumentParser(description="Create collection XML files from NFOs.")
