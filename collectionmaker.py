@@ -181,7 +181,7 @@ def download_and_extract_collection_ids():
         logging.error(f"Failed to download or parse collection IDs: {e}")
         return {}
 
-def process_movie_nfo_files(library_dir, output_dir, api_key, overwrite=False):
+def process_movie_nfo_files(library_dir, output_dir, api_key, overwrite=False, skip_single=False):
     """Scans movie NFOs and builds collection XMLs based on the movie's collection information."""
     collections = {}
 
@@ -233,8 +233,17 @@ def process_movie_nfo_files(library_dir, output_dir, api_key, overwrite=False):
 
     # Generate XML files for each collection
     for collection_name, collection_data in collections.items():
+        if skip_single and len(collection_data['Movies']) == 1:
+            logging.info(f"Skipping single-movie collection: {collection_name}")
+            continue
+
         collection_id = collection_ids.get(collection_name)  # Get the collection ID if available
         output_file_path = os.path.join(output_dir, collection_name, 'collection.xml')
+
+        # Skip existing collections if not overwriting
+        if os.path.exists(output_file_path) and not overwrite:
+            logging.info(f"Collection already exists, skipping: {collection_name}")
+            continue
 
         # Create the collection XML
         create_collection_xml(collection_name, collection_data, output_file_path, library_dir, collection_id)
@@ -250,6 +259,7 @@ def main():
     parser.add_argument("--library_dir", required=True, help="Directory containing NFO and video files.")
     parser.add_argument('--output_dir', default='/var/lib/jellyfin/data/collections', help='Output directory for collection XMLs.')
     parser.add_argument("--key", help="TMDb API key for fetching additional collection data.")
+    parser.add_argument("--skip_single", action='store_true', help="Skip creating collections with only one movie.")
     parser.add_argument("--overwrite", action='store_true', help="Overwrite existing XML files.")
 
     args = parser.parse_args()
@@ -258,7 +268,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # Process the movie NFO files
-    process_movie_nfo_files(args.library_dir, args.output_dir, args.key, args.overwrite)
+    process_movie_nfo_files(args.library_dir, args.output_dir, args.key, args.overwrite, args.skip_single)
 
 if __name__ == "__main__":
     main()
